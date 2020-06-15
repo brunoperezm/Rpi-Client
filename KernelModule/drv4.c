@@ -10,6 +10,12 @@
 #include <linux/device.h>
 #include <linux/cdev.h>
 #include <linux/uaccess.h>
+#include <linux/gpio.h>
+
+
+#define BUF_SIZE            512
+#define PIN_DHT             4
+
 
 static dev_t first; 		// Global variable for the first device number
 static struct cdev c_dev; 	// Global variable for the character device structure
@@ -60,17 +66,41 @@ static ssize_t my_read(struct file *f, char __user *buf, size_t len, loff_t *off
 
 }
 
-// my_write escribe "len" bytes en "buf" y devuelve la cantidad escrita, que debe ser igual "len".
-// Cuando hago un $ echo "bla bla bla..." > /dev/SdeC_drv3, se convoca a my_write.!!
+/**
+ * Esta funcion permite escribir un pin de la RPI.
+ * Soporta 2 comandos:
+ * Commando             Descripcion
+ * high {pin}           Setea el GPIO {pin} en modo output y en alto
+ * low  {pin}           Setea el GPIO {pin} en modo output y en bajo
+ *
+ */
 
 static ssize_t my_write(struct file *f, const char __user *buf, size_t len, loff_t *off)
 {
+    char kbuf[BUF_SIZE];
     printk(KERN_INFO "city_bike: write()\n");
 
-    if ( copy_from_user(&c, buf + len - 1, 1) != 0 )
+    if ( copy_from_user(kbuf, buf, len) != 0 )
         return -EFAULT;
-    else
+    else {
+        kbuf[len] = '\0';
+        
+        int gpioPin;
+        if (sscanf (kbuf, "high %d",&gpioPin) == 1) {
+            printk(KERN_INFO "city_bike: entro a high\n");
+            gpio_request(gpioPin, "PIN_DHT");
+	        gpio_direction_output(gpioPin, 1);
+        }
+        else if (sscanf (kbuf, "low %d",&gpioPin) == 1) {
+            printk(KERN_INFO "city_bike: entro a low\n");
+            gpio_request(gpioPin, "PIN_DHT");
+	        gpio_direction_output(gpioPin, 0);
+        }
+        else {
+            printk(KERN_INFO "city_bike: no se reconocio comando\n");
+        }
         return len;
+    }
 }
 
 static struct file_operations pugs_fops =
